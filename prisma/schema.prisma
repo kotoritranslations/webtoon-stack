@@ -1,0 +1,497 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url       = env("DATABASE_URL")  // ← vercel
+}
+
+// ============================================
+// USUARIOS Y AUTENTICACIÓN
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+
+  // === PERFIL PÚBLICO ===
+  username    String?  @unique
+  displayName String?
+  bio         String?  @db.Text
+  avatar      String?
+  banner      String?
+
+  // === REDES SOCIALES ===
+  socialTwitter   String?
+  socialInstagram String?
+  socialYoutube   String?
+  socialTiktok    String?
+  socialWebsite   String?
+
+  // === CREATOR STATUS ===
+  isCreator Boolean @default(false)
+
+  // === STATS ===
+  followersCount Int @default(0)
+  totalSeries    Int @default(0)
+
+  // === METADATA ===
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // === RELACIONES ===
+  accounts Account[]
+  sessions Session[]
+
+  // Contenido creado
+  series   Series[]
+
+  // Actividad como lector
+  following    Follow[]       @relation("UserFollowing")
+  followers    Follow[]       @relation("CreatorFollowers")
+  likes        Like[]
+  comments     Comment[]
+  bookmarks    Bookmark[]
+  readHistory  ReadHistory[]
+  reports      Report[]
+
+  // Notificaciones
+  notifications           Notification[]
+  notificationPreferences NotificationPreference?
+
+  @@index([username])
+  @@index([email])
+  @@index([isCreator])
+  @@map("users")
+}
+
+// NextAuth - Account
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// NextAuth - Session
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// NextAuth - VerificationToken
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================
+// GÉNEROS Y CATEGORÍAS
+// ============================================
+
+model Genre {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String? @db.Text
+  color       String? // hex color para UI
+  iconUrl     String?
+  isActive    Boolean @default(true)
+
+  seriesGenres SeriesGenre[]
+
+  @@index([slug])
+  @@map("genres")
+}
+
+// ============================================
+// SERIES (webtoon / manga / comic)
+// ============================================
+
+model Series {
+  id        String @id @default(cuid())
+  creatorId String
+
+  // === INFO BÁSICA ===
+  title       String
+  slug        String  @unique
+  synopsis    String? @db.Text
+  coverUrl    String?
+  coverKey    String?
+  bannerUrl   String?
+  bannerKey   String?
+
+  // === CLASIFICACIÓN ===
+  // ongoing | completed | hiatus | canceled
+  status      String  @default("ongoing")
+  // all | teen | mature
+  ageRating   String  @default("all")
+  // webtoon | manga | manhwa | comic | novel
+  format      String  @default("webtoon")
+  // ltr | rtl (dirección de lectura)
+  readingDir  String  @default("ltr")
+
+  // === STATS ===
+  viewsCount    Int @default(0)
+  likesCount    Int @default(0)
+  commentsCount Int @default(0)
+  bookmarksCount Int @default(0)
+  chaptersCount Int @default(0)
+  followersCount Int @default(0)
+
+  // === VISIBILIDAD ===
+  isPublished Boolean @default(false)
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creator  User          @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  chapters Chapter[]
+  genres   SeriesGenre[]
+  likes    Like[]
+  bookmarks Bookmark[]
+  comments Comment[]
+
+  @@index([creatorId])
+  @@index([slug])
+  @@index([status])
+  @@index([format])
+  @@index([isPublished, isActive])
+  @@index([createdAt])
+  @@map("series")
+}
+
+// Relación many-to-many Series <-> Genre
+model SeriesGenre {
+  seriesId String
+  genreId  String
+
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  genre  Genre  @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([seriesId, genreId])
+  @@index([seriesId])
+  @@index([genreId])
+  @@map("series_genres")
+}
+
+// ============================================
+// CAPÍTULOS / EPISODIOS
+// ============================================
+
+model Chapter {
+  id       String @id @default(cuid())
+  seriesId String
+
+  // === INFO ===
+  number    Float  // Permite caps decimales tipo 1.5 (especiales)
+  title     String?
+  slug      String // ej: "capitulo-1"
+
+  // === NOTAS DEL AUTOR ===
+  authorNote String? @db.Text
+
+  // === STATS ===
+  viewsCount  Int @default(0)
+  likesCount  Int @default(0)
+
+  // === VISIBILIDAD ===
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  series      Series        @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  pages       Page[]
+  likes       Like[]
+  comments    Comment[]
+  readHistory ReadHistory[]
+
+  @@unique([seriesId, number])
+  @@unique([seriesId, slug])
+  @@index([seriesId])
+  @@index([isPublished])
+  @@index([publishedAt])
+  @@map("chapters")
+}
+
+// ============================================
+// PÁGINAS (imágenes del capítulo)
+// ============================================
+
+model Page {
+  id        String @id @default(cuid())
+  chapterId String
+
+  order     Int    // Orden dentro del capítulo
+  imageUrl  String
+  imageKey  String
+  width     Int?
+  height    Int?
+  fileSize  Int?   // bytes
+
+  createdAt DateTime @default(now())
+
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([chapterId])
+  @@index([chapterId, order])
+  @@map("pages")
+}
+
+// ============================================
+// HISTORIAL DE LECTURA
+// ============================================
+
+model ReadHistory {
+  id        String @id @default(cuid())
+  userId    String
+  chapterId String
+
+  // Última página vista (para continuar leyendo)
+  lastPageOrder Int @default(0)
+  completed     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@index([userId])
+  @@index([chapterId])
+  @@index([updatedAt])
+  @@map("read_history")
+}
+
+// ============================================
+// FOLLOWS (usuarios siguiendo series o creadores)
+// ============================================
+
+model Follow {
+  id        String @id @default(cuid())
+  userId    String
+  creatorId String
+
+  createdAt DateTime @default(now())
+
+  user    User @relation("UserFollowing", fields: [userId], references: [id], onDelete: Cascade)
+  creator User @relation("CreatorFollowers", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, creatorId])
+  @@index([userId])
+  @@index([creatorId])
+  @@map("follows")
+}
+
+// ============================================
+// BOOKMARKS / BIBLIOTECA
+// ============================================
+
+model Bookmark {
+  id       String @id @default(cuid())
+  userId   String
+  seriesId String
+
+  // reading | on_hold | completed | dropped | plan_to_read
+  listType String @default("reading")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, seriesId])
+  @@index([userId])
+  @@index([seriesId])
+  @@index([listType])
+  @@map("bookmarks")
+}
+
+// ============================================
+// LIKES
+// ============================================
+
+model Like {
+  id     String @id @default(cuid())
+  userId String
+
+  // Se puede likear una serie, capítulo o comentario
+  // Exactamente uno de estos debe estar presente
+  seriesId  String?
+  chapterId String?
+  commentId String?
+
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  series  Series?  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([seriesId])
+  @@index([chapterId])
+  @@index([commentId])
+  @@map("likes")
+}
+
+// ============================================
+// COMENTARIOS
+// ============================================
+
+model Comment {
+  id       String  @id @default(cuid())
+  userId   String
+  parentId String? // Para respuestas/threads
+
+  // El comentario pertenece a una serie o a un capítulo
+  seriesId  String?
+  chapterId String?
+
+  content   String  @db.Text
+  isDeleted Boolean @default(false)
+  isHidden  Boolean @default(false)
+
+  likesCount   Int @default(0)
+  repliesCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  series  Series?  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  parent  Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+  likes   Like[]
+  reports Report[]
+
+  @@index([userId])
+  @@index([seriesId])
+  @@index([chapterId])
+  @@index([parentId])
+  @@index([createdAt])
+  @@map("comments")
+}
+
+// ============================================
+// REPORTES
+// ============================================
+
+model Report {
+  id     String @id @default(cuid())
+  userId String
+
+  // series | chapter | comment | user
+  targetType String
+  targetId   String
+
+  // spam | inappropriate | harassment | copyright | other
+  reason  String
+  details String? @db.Text
+
+  // pending | reviewed | resolved | dismissed
+  status     String    @default("pending")
+  reviewedBy String?
+  reviewedAt DateTime?
+  resolution String?
+
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [targetId], references: [id], onDelete: Cascade, map: "report_comment_fk")
+
+  @@index([userId])
+  @@index([targetType, targetId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("reports")
+}
+
+// ============================================
+// NOTIFICACIONES
+// ============================================
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+
+  // new_follower | new_chapter | new_comment | comment_reply
+  type String
+
+  title String
+  body  String
+  data  Json?
+
+  isRead  Boolean   @default(false)
+  readAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================
+// PREFERENCIAS DE NOTIFICACIÓN
+// ============================================
+
+model NotificationPreference {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  emailNewFollower  Boolean @default(true)
+  emailNewChapter   Boolean @default(true)
+  emailNewComment   Boolean @default(false)
+  emailCommentReply Boolean @default(true)
+
+  pushNewFollower  Boolean @default(true)
+  pushNewChapter   Boolean @default(true)
+  pushNewComment   Boolean @default(true)
+  pushCommentReply Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
