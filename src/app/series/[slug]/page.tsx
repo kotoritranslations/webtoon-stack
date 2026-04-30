@@ -30,8 +30,8 @@ export async function generateMetadata({
     });
     if (!series) return {};
     return {
-        title: `${series.title} — Webtoon`,
-        description: series.synopsis ?? `Lee ${series.title} gratis en Webtoon`,
+        title: `${series.title} — SITE`,
+        description: series.synopsis ?? `Lee ${series.title} gratis en SITE`,
         openGraph: {
             images: series.coverUrl ? [series.coverUrl] : [],
         },

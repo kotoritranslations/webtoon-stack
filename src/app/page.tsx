@@ -10,7 +10,7 @@ import { ChapterCard } from "@/components/home/ChapterCard";
 import { ContinueReading } from "@/components/home/ContinueReading";
 
 export const metadata = {
-  title: "Webtoon — Lee series gratis",
+  title: "SITE — Lee series gratis",
   description:
     "Descubre miles de series de webtoon, manga y cómics. Lee los últimos capítulos publicados por tus creadores favoritos.",
 };

@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Webtoon — Lee series gratis",
+  title: "SITE — Lee series gratis",
   description: "Descubre miles de series de webtoon, manga y cómics de creadores independientes.",
 };
 

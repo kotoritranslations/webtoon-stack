@@ -57,7 +57,7 @@ export function Navbar() {
           className="text-sm font-bold tracking-[-0.05em] transition-opacity hover:opacity-70"
           style={{ color: "var(--color-text-1)" }}
         >
-          Webtoon
+          SITE
         </Link>
 
         {/* Nav links */}

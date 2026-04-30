@@ -242,10 +242,10 @@ export async function generateMetadata({ params }: PageProps) {
   const name = creator.displayName || creator.username;
 
   return {
-    title: `${name} — Webtoon`,
+    title: `${name} — SITE`,
     description: creator.bio || `Perfil de ${name}. Descubre sus series y últimos capítulos.`,
     openGraph: {
-      title: `${name} — Webtoon`,
+      title: `${name} — SITE`,
       description: creator.bio || `Perfil de ${name}`,
     },
   };
