@@ -54,8 +54,9 @@ export function SeriesCard({ series }: SeriesCardProps) {
     return (
         <Link
             href={`/series/${series.slug}`}
-            className="group relative flex flex-col overflow-hidden rounded-[10px] transition-transform duration-200 hover:-translate-y-0.5"
+            className="group relative flex flex-col overflow-hidden rounded-[10px] transition-transform duration-200 hover:-translate-y-0.5 shrink-0"
             style={{
+                width: "clamp(140px, 18vw, 220px)",
                 backgroundColor: "var(--color-layer-2)",
                 border: "1px solid var(--color-border)",
             }}
@@ -68,7 +69,7 @@ export function SeriesCard({ series }: SeriesCardProps) {
                         alt={series.title}
                         fill
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
+                        sizes="(max-width: 640px) 40vw, 18vw"
                     />
                 ) : (
                     <div

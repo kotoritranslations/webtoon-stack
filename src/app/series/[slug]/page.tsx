@@ -195,7 +195,7 @@ export default async function SeriesPage({
                                 {genres.map((g) => (
                                     <Link
                                         key={g.id}
-                                        href={`/explore?genre=${g.slug}`}
+                                        href={`/library?genre=${g.slug}`}
                                         className="text-[11px] font-medium px-2 py-0.5 rounded-full transition-opacity hover:opacity-80"
                                         style={{
                                             backgroundColor: `color-mix(in srgb, ${g.color ?? "#6b7280"} 15%, transparent)`,

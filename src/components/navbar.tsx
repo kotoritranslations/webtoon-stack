@@ -44,7 +44,7 @@ export function Navbar() {
 
   return (
     <nav
-      className="flex h-12 w-full items-center justify-between px-4"
+      className="sticky top-0 z-40 flex h-12 w-full items-center justify-between px-4"
       style={{
         backgroundColor: "var(--color-layer-1)",
         borderBottom: "1px solid var(--color-layer-3)",
@@ -62,8 +62,8 @@ export function Navbar() {
 
         {/* Nav links */}
         <div className="hidden items-center gap-1 sm:flex">
-          <NavLink href="/explore">Explorar</NavLink>
-          <NavLink href="/series">Series</NavLink>
+          <NavLink href="/library">Biblioteca</NavLink>
+          <NavLink href="/chapters">Capítulos</NavLink>
         </div>
       </div>
 
@@ -153,14 +153,14 @@ export function Navbar() {
                     )}
                     <DropdownItem
                       href="/dashboard"
-                      icon={<Gauge size={14} />}   // importa Gauge de @phosphor-icons/react
+                      icon={<Gauge size={14} />}
                       label="Dashboard"
                       onClick={() => setDropdownOpen(false)}
                     />
                     <DropdownItem
                       href="/library"
                       icon={<BookOpen size={14} />}
-                      label="Mi biblioteca"
+                      label="Biblioteca"
                       onClick={() => setDropdownOpen(false)}
                     />
                     <DropdownItem

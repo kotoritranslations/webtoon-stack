@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Plus, Books } from "@phosphor-icons/react/dist/ssr";
+import { Books } from "@phosphor-icons/react/dist/ssr";
 import { SeriesList } from "@/components/series/SeriesList";
+import { NewSeriesButton } from "@/components/dashboard/NewSeriesButton";
 
 export const metadata = {
     title: "Mis series | Dashboard",
@@ -34,7 +35,6 @@ export default async function DashboardSeriesPage() {
         },
     });
 
-    // Serializar fechas para el client component
     const serialized = series.map((s) => ({
         ...s,
         createdAt: s.createdAt.toISOString(),
@@ -105,27 +105,7 @@ export default async function DashboardSeriesPage() {
                             </div>
                         </div>
 
-                        <Link
-                            href="/dashboard/series/new"
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.5rem",
-                                padding: "0.5rem 1rem",
-                                borderRadius: "var(--radius-md)",
-                                backgroundColor: "var(--color-text-1)",
-                                color: "var(--color-layer-1)",
-                                fontSize: "0.875rem",
-                                fontWeight: 500,
-                                textDecoration: "none",
-                                transition: "opacity 0.15s",
-                            }}
-                            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.85")}
-                            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
-                        >
-                            <Plus size={15} weight="bold" />
-                            Nueva serie
-                        </Link>
+                        <NewSeriesButton />
                     </div>
                 </div>
             </div>

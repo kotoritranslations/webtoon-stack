@@ -6,14 +6,17 @@ import { createContext, useContext, useState, ReactNode } from "react";
 interface SidebarContextValue {
     mobileOpen: boolean;
     setMobileOpen: (open: boolean) => void;
+    expanded: boolean;
+    setExpanded: (expanded: boolean) => void;
 }
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [expanded, setExpanded] = useState(false);
     return (
-        <SidebarContext.Provider value={{ mobileOpen, setMobileOpen }}>
+        <SidebarContext.Provider value={{ mobileOpen, setMobileOpen, expanded, setExpanded }}>
             {children}
         </SidebarContext.Provider>
     );

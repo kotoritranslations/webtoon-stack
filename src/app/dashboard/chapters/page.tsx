@@ -122,6 +122,7 @@ export default async function DashboardChaptersPage() {
 
                         <Link
                             href="/dashboard/chapters/new"
+                            className="hover:opacity-85"
                             style={{
                                 display: "flex", alignItems: "center", gap: "0.5rem",
                                 padding: "0.5rem 1rem",
@@ -132,8 +133,6 @@ export default async function DashboardChaptersPage() {
                                 textDecoration: "none",
                                 transition: "opacity 0.15s",
                             }}
-                            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.85")}
-                            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
                         >
                             <Plus size={15} weight="bold" />
                             Nuevo capítulo

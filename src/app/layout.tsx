@@ -2,6 +2,8 @@
 
 import { AuthProvider } from "@/components/providers/session-provider";
 import { Navbar } from "@/components/navbar";
+import { Sidebar } from "@/components/sidebar";
+import { SidebarProvider } from "@/context/sidebar-context";
 import { Footer } from "@/components/Footer";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -51,13 +53,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${geist.variable} ${geistMono.variable} font-sans`}>
         <AuthProvider>
-          <div className="flex min-h-screen flex-col">
-            <Navbar />
-            <main className="flex-1">
-              {children}
-            </main>
-            <Footer />
-          </div>
+          <SidebarProvider>
+            <div className="flex min-h-screen">
+
+              {/* Sidebar fijo a la izquierda */}
+              <Sidebar />
+
+              {/* Columna derecha: navbar + contenido + footer */}
+              <div className="flex min-w-0 flex-1 flex-col lg:pl-14">
+
+                {/* Navbar solo sobre el contenido principal */}
+                <Navbar />
+
+                <main className="flex-1">
+                  {children}
+                </main>
+
+                <Footer />
+              </div>
+
+            </div>
+          </SidebarProvider>
         </AuthProvider>
       </body>
     </html>

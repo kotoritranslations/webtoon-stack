@@ -1,8 +1,8 @@
 "use client";
 
-// src/components/layout/Sidebar.tsx
+// src/components/Sidebar.tsx
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -20,8 +20,6 @@ import {
     Question,
 } from "@phosphor-icons/react";
 
-// ─── Nav items ────────────────────────────────────────────────────────────────
-
 const NAV_ITEMS = [
     { label: "Dashboard", href: "/dashboard", icon: SquaresFour },
     { label: "Mis series", href: "/dashboard/series", icon: Books },
@@ -35,11 +33,8 @@ const BOTTOM_ITEMS = [
     { label: "Ajustes", href: "/settings", icon: Gear },
 ];
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
-
 export function Sidebar() {
-    const { mobileOpen, setMobileOpen } = useSidebar();
-    const [expanded, setExpanded] = useState(false);
+    const { mobileOpen, setMobileOpen, expanded, setExpanded } = useSidebar();
     const pathname = usePathname();
     const { data: session } = useSession();
     const username = (session?.user as any)?.username;
@@ -49,18 +44,15 @@ export function Sidebar() {
         ...NAV_ITEMS,
     ];
 
-    // Cerrar drawer al cambiar ruta
     useEffect(() => {
         setMobileOpen(false);
     }, [pathname, setMobileOpen]);
 
-    // Bloquear scroll cuando el drawer está abierto
     useEffect(() => {
         document.body.style.overflow = mobileOpen ? "hidden" : "";
         return () => { document.body.style.overflow = ""; };
     }, [mobileOpen]);
 
-    // ── Helpers de estilo ───────────────────────────────────────────────────────
     const isActive = (href: string) =>
         href === "/dashboard" ? pathname === href : pathname.startsWith(href);
 
@@ -83,12 +75,11 @@ export function Sidebar() {
         }
     };
 
-    // ── Contenido compartido ────────────────────────────────────────────────────
     const content = (isMobile = false) => (
         <>
-            {/* Toggle / Close */}
+            {/* Header con toggle / close */}
             <div
-                className="flex h-12 w-full items-center border-b"
+                className="flex h-12 w-full shrink-0 items-center border-b"
                 style={{
                     borderColor: "var(--color-layer-3)",
                     justifyContent: isMobile || expanded ? "flex-end" : "center",
@@ -99,8 +90,8 @@ export function Sidebar() {
                     <button
                         type="button"
                         onClick={() => setMobileOpen(false)}
-                        className="flex items-center gap-2 px-2 py-1.5 text-[13px] font-medium"
-                        style={{ borderRadius: "var(--radius-md)", color: "var(--color-text-3)" }}
+                        className="flex h-7 w-7 items-center justify-center rounded-[4px]"
+                        style={{ color: "var(--color-text-3)" }}
                         onMouseEnter={(e) => {
                             (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-layer-3)";
                             (e.currentTarget as HTMLElement).style.color = "var(--color-text-1)";
@@ -109,15 +100,15 @@ export function Sidebar() {
                             (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
                             (e.currentTarget as HTMLElement).style.color = "var(--color-text-3)";
                         }}
+                        aria-label="Cerrar menú"
                     >
                         <X size={15} weight="bold" />
-                        Cerrar
                     </button>
                 ) : (
                     <button
                         type="button"
                         onClick={() => setExpanded(!expanded)}
-                        className={`flex h-7 w-7 items-center justify-center rounded-[4px] transition-all duration-200 ${expanded ? "rotate-180" : "rotate-0"}`}
+                        className={`flex h-7 w-7 items-center justify-center rounded-[4px] transition-transform duration-200 ${expanded ? "rotate-180" : "rotate-0"}`}
                         style={{ color: "var(--color-text-3)" }}
                         onMouseEnter={(e) => {
                             (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-layer-3)";
@@ -201,9 +192,9 @@ export function Sidebar() {
                 {content(true)}
             </aside>
 
-            {/* Sidebar desktop */}
+            {/* Sidebar desktop — z-50 para quedar sobre el navbar */}
             <aside
-                className={`fixed left-0 top-0 z-30 hidden h-screen flex-col border-r transition-all duration-200 ease-in-out lg:flex ${expanded ? "w-52" : "w-14"}`}
+                className={`fixed left-0 top-0 z-50 hidden h-screen flex-col border-r transition-all duration-200 ease-in-out lg:flex ${expanded ? "w-52" : "w-14"}`}
                 style={{ backgroundColor: "var(--color-layer-1)", borderColor: "var(--color-layer-3)" }}
             >
                 {content(false)}
@@ -211,8 +202,6 @@ export function Sidebar() {
         </>
     );
 }
-
-// ─── NavItem ──────────────────────────────────────────────────────────────────
 
 function NavItem({
     href,
@@ -244,7 +233,6 @@ function NavItem({
             {icon}
             {expanded && <span className="whitespace-nowrap">{label}</span>}
 
-            {/* Tooltip colapsado */}
             {!expanded && (
                 <div
                     className="pointer-events-none absolute left-[calc(100%+8px)] z-50 whitespace-nowrap rounded-[6px] px-2.5 py-1.5 text-[12px] font-medium opacity-0 transition-opacity duration-100 group-hover:opacity-100"
