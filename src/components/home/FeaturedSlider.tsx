@@ -105,11 +105,12 @@ export function FeaturedSlider({ items }: { items: Series[] }) {
     }, [totalReal, scrollToIndexInstant]);
 
     const scrollToIndex = useCallback((i: number) => {
-        itemRefs.current[i]?.scrollIntoView({
-            behavior: "smooth",
-            block: "nearest",
-            inline: "center",
-        });
+        const el = itemRefs.current[i];
+        const track = trackRef.current;
+        if (!el || !track) return;
+        const elCenter = el.offsetLeft + el.offsetWidth / 2;
+        const targetScrollLeft = elCenter - track.clientWidth / 2;
+        track.scrollTo({ left: targetScrollLeft, behavior: "smooth" });
     }, []);
 
     const startAutoplay = useCallback(() => {
@@ -166,7 +167,7 @@ export function FeaturedSlider({ items }: { items: Series[] }) {
                         className="shrink-0 overflow-hidden rounded-2xl transition-all duration-500 ease-in-out"
                         style={{
                             scrollSnapAlign: "center",
-                            width: isActive ? "min(480px, 92vw)" : "min(200px, 44vw)",
+                            width: isActive ? "min(480px, 92vw)" : "min(220px, 92vw)",
                             height: "min(260px, 56vw)",
                             backgroundColor: "var(--color-layer-2)",
                         }}
@@ -175,7 +176,7 @@ export function FeaturedSlider({ items }: { items: Series[] }) {
                             <Link href={`/series/${series.slug}`} className="flex h-full w-full">
                                 <div
                                     className="relative shrink-0 overflow-hidden rounded-2xl"
-                                    style={{ width: "min(200px, 44vw)", height: "100%" }}
+                                    style={{ width: "min(180px, 92vw)", height: "100%" }}
                                 >
                                     {series.coverUrl ? (
                                         <Image

@@ -1,5 +1,3 @@
-// src/app/page.tsx
-
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Clock, Star, ArrowRight } from "@phosphor-icons/react/dist/ssr";
@@ -12,7 +10,6 @@ export const metadata = {
     "Descubre miles de series de webtoon, manga y cómics. Lee los últimos capítulos publicados por tus creadores favoritos.",
 };
 
-// ─── Revalidación ISR — respaldo cada 5 minutos ───────────────────────────────
 export const revalidate = 300;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -55,12 +52,11 @@ async function getFeaturedSeries() {
   });
 }
 
-// ─── Nueva query — series con sus últimos 2 capítulos ────────────────────────
 async function getRecentChapters() {
   const series = await prisma.series.findMany({
     where: { isPublished: true, isActive: true, coverUrl: { not: null } },
     orderBy: { updatedAt: "desc" },
-    take: 20,
+    take: 18, // ← limitado a 18
     select: {
       id: true,
       slug: true,
@@ -79,7 +75,6 @@ async function getRecentChapters() {
     },
   });
 
-  // Filtrar series que no tengan al menos 1 capítulo publicado
   return series.filter((s) => s.chapters.length > 0);
 }
 
@@ -136,22 +131,12 @@ export default async function HomePage() {
     >
       {/* Series destacadas */}
       <section>
-        <SectionHeader
-          icon={<Star size={15} weight="fill" />}
-          title="Series destacadas"
-          href="/library"
-        />
         <FeaturedSlider items={series} />
       </section>
 
       {/* Últimos capítulos */}
       <section>
-        <SectionHeader
-          icon={<Clock size={15} weight="fill" />}
-          title="Últimos capítulos"
-          href="/chapters"
-        />
-        <div className="grid grid-cols-2 gap-3 px-4 sm:grid-cols-3 sm:px-6 md:grid-cols-4 lg:grid-cols-5">
+        <div className="mx-auto w-full max-w-[1280px] grid grid-cols-2 gap-3 px-4 sm:grid-cols-3 sm:px-6 md:grid-cols-4 lg:grid-cols-6">
           {recentSeries.map((s) => (
             <ChapterCard
               key={s.id}
