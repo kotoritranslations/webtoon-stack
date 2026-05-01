@@ -8,7 +8,7 @@ import Image from "next/image";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useEffect } from "react";
-import { User, SignOut, Gear, BookOpen, Gauge } from "@phosphor-icons/react";
+import { User, SignOut, Gear, BookOpen, SquaresFour } from "@phosphor-icons/react";
 import { NotificationsDropdown } from "@/components/notifications/NotificationsDropdown";
 
 export function Navbar() {
@@ -153,7 +153,7 @@ export function Navbar() {
                     )}
                     <DropdownItem
                       href="/dashboard"
-                      icon={<Gauge size={14} />}
+                      icon={<SquaresFour size={14} />}
                       label="Dashboard"
                       onClick={() => setDropdownOpen(false)}
                     />

@@ -3,16 +3,17 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Clock, Star, ArrowRight } from "@phosphor-icons/react/dist/ssr";
-import { SeriesCard } from "@/components/home/SeriesCard";
 import { ChapterCard } from "@/components/home/ChapterCard";
 import { FeaturedSlider } from "@/components/home/FeaturedSlider";
-import { HorizontalSlider } from "@/components/home/HorizontalSlider";
 
 export const metadata = {
   title: "SITE — Lee series gratis",
   description:
     "Descubre miles de series de webtoon, manga y cómics. Lee los últimos capítulos publicados por tus creadores favoritos.",
 };
+
+// ─── Revalidación ISR — respaldo cada 5 minutos ───────────────────────────────
+export const revalidate = 300;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,41 +55,32 @@ async function getFeaturedSeries() {
   });
 }
 
+// ─── Nueva query — series con sus últimos 2 capítulos ────────────────────────
 async function getRecentChapters() {
-  const chapters = await prisma.chapter.findMany({
-    where: {
-      isPublished: true,
-      series: { isPublished: true, isActive: true },
-    },
-    orderBy: { publishedAt: "desc" },
-    take: 18,
+  const series = await prisma.series.findMany({
+    where: { isPublished: true, isActive: true, coverUrl: { not: null } },
+    orderBy: { updatedAt: "desc" },
+    take: 20,
     select: {
       id: true,
-      number: true,
-      title: true,
       slug: true,
-      publishedAt: true,
-      viewsCount: true,
-      series: {
+      title: true,
+      coverUrl: true,
+      chapters: {
+        where: { isPublished: true },
+        orderBy: { number: "desc" },
+        take: 2,
         select: {
-          slug: true,
+          number: true,
           title: true,
-          coverUrl: true,
-          creator: { select: { username: true } },
-          genres: {
-            take: 1,
-            select: { genre: { select: { name: true, color: true } } },
-          },
+          publishedAt: true,
         },
       },
     },
   });
 
-  return chapters.map((c) => ({
-    ...c,
-    number: Number(c.number),
-    publishedAt: c.publishedAt ?? null,
-  }));
+  // Filtrar series que no tengan al menos 1 capítulo publicado
+  return series.filter((s) => s.chapters.length > 0);
 }
 
 // ─── Section header ───────────────────────────────────────────────────────────
@@ -132,7 +124,7 @@ function SectionHeader({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function HomePage() {
-  const [series, chapters] = await Promise.all([
+  const [series, recentSeries] = await Promise.all([
     getFeaturedSeries(),
     getRecentChapters(),
   ]);
@@ -159,25 +151,22 @@ export default async function HomePage() {
           title="Últimos capítulos"
           href="/chapters"
         />
-        <HorizontalSlider>
-          {chapters.map((chapter) => {
-            const genre = chapter.series.genres[0]?.genre ?? null;
-            const href = `/series/${chapter.series.slug}/chapter/${chapter.number}`;
-            return (
-              <ChapterCard
-                key={chapter.id}
-                href={href}
-                coverUrl={chapter.series.coverUrl}
-                seriesTitle={chapter.series.title}
-                chapterNumber={chapter.number}
-                chapterTitle={chapter.title}
-                viewsCount={chapter.viewsCount}
-                timeAgo={chapter.publishedAt ? timeAgo(chapter.publishedAt) : "—"}
-                genre={genre}
-              />
-            );
-          })}
-        </HorizontalSlider>
+        <div className="grid grid-cols-2 gap-3 px-4 sm:grid-cols-3 sm:px-6 md:grid-cols-4 lg:grid-cols-5">
+          {recentSeries.map((s) => (
+            <ChapterCard
+              key={s.id}
+              seriesHref={`/series/${s.slug}`}
+              coverUrl={s.coverUrl}
+              seriesTitle={s.title}
+              chapters={s.chapters.map((ch) => ({
+                number: Number(ch.number),
+                title: ch.title,
+                publishedAt: ch.publishedAt,
+                timeAgo: ch.publishedAt ? timeAgo(ch.publishedAt) : "—",
+              }))}
+            />
+          ))}
+        </div>
       </section>
     </div>
   );

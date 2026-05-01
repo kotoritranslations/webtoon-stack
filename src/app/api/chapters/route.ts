@@ -1,6 +1,7 @@
 // src/app/api/chapters/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -49,31 +50,48 @@ export async function POST(request: NextRequest) {
 
         // ── Validaciones ──────────────────────────────────────────────────────────
         if (!body.seriesId) {
-            return NextResponse.json({ error: "seriesId es requerido" }, { status: 400 });
+            return NextResponse.json(
+                { error: "seriesId es requerido" },
+                { status: 400 }
+            );
         }
         if (body.number === undefined || body.number === null || isNaN(body.number)) {
-            return NextResponse.json({ error: "El número de capítulo es requerido" }, { status: 400 });
+            return NextResponse.json(
+                { error: "El número de capítulo es requerido" },
+                { status: 400 }
+            );
         }
         if (!Array.isArray(body.pages) || body.pages.length === 0) {
-            return NextResponse.json({ error: "Se requiere al menos una página" }, { status: 400 });
+            return NextResponse.json(
+                { error: "Se requiere al menos una página" },
+                { status: 400 }
+            );
         }
 
-        // ── Verificar que la serie pertenece al usuario ────────────────────────────
+        // ── Verificar que la serie pertenece al usuario ───────────────────────────
         const series = await prisma.series.findUnique({
             where: { id: body.seriesId },
-            select: { id: true, creatorId: true },
+            select: { id: true, creatorId: true, slug: true },
         });
 
         if (!series) {
-            return NextResponse.json({ error: "Serie no encontrada" }, { status: 404 });
+            return NextResponse.json(
+                { error: "Serie no encontrada" },
+                { status: 404 }
+            );
         }
         if (series.creatorId !== userId) {
-            return NextResponse.json({ error: "No tienes permiso sobre esta serie" }, { status: 403 });
+            return NextResponse.json(
+                { error: "No tienes permiso sobre esta serie" },
+                { status: 403 }
+            );
         }
 
         // ── Verificar que el número no está duplicado ─────────────────────────────
         const existing = await prisma.chapter.findUnique({
-            where: { seriesId_number: { seriesId: body.seriesId, number: body.number } },
+            where: {
+                seriesId_number: { seriesId: body.seriesId, number: body.number },
+            },
             select: { id: true },
         });
 
@@ -122,6 +140,13 @@ export async function POST(request: NextRequest) {
 
             return newChapter;
         });
+
+        // ── Revalidar caché — solo si el capítulo se publica de inmediato ─────────
+        if (body.isPublished) {
+            revalidatePath("/");                          // home — "Últimos capítulos"
+            revalidatePath("/chapters");                  // listado de capítulos
+            revalidatePath(`/series/${series.slug}`);     // página de la serie
+        }
 
         return NextResponse.json({ chapter }, { status: 201 });
     } catch (error) {

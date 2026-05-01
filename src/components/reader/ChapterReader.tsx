@@ -414,7 +414,7 @@ export function ChapterReader({
                                         }}
                                     >
                                         <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--color-text-3)", marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                                            Nota del autor
+                                            Nota
                                         </p>
                                         <p style={{ fontSize: "0.875rem", color: "var(--color-text-2)", lineHeight: 1.7 }}>
                                             {authorNote}

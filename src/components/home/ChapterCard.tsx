@@ -1,45 +1,33 @@
-// src/components/home/ChapterCard.tsx
-
 import Image from "next/image";
 import Link from "next/link";
-import { Eye } from "@phosphor-icons/react/dist/ssr";
 
-interface ChapterCardProps {
-    href: string;
-    coverUrl: string | null;
-    seriesTitle: string;
-    chapterNumber: number;
-    chapterTitle: string | null;
-    viewsCount: number;
+interface Chapter {
+    number: number;
+    title: string | null;
+    publishedAt: Date | null;
     timeAgo: string;
-    genre: { name: string; color: string | null } | null;
 }
 
-function formatViews(n: number): string {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-    return String(n);
+interface ChapterCardProps {
+    seriesHref: string;
+    coverUrl: string | null;
+    seriesTitle: string;
+    chapters: Chapter[];
 }
 
 export function ChapterCard({
-    href,
+    seriesHref,
     coverUrl,
     seriesTitle,
-    chapterNumber,
-    chapterTitle,
-    viewsCount,
-    timeAgo,
-    genre,
+    chapters,
 }: ChapterCardProps) {
     return (
-        <Link
-            href={href}
-            className="group flex items-center gap-3 rounded-[10px] p-2 transition-colors duration-150 hover:bg-[var(--color-layer-2)]"
-        >
-            {/* Cover thumbnail */}
-            <div
-                className="relative flex-shrink-0 overflow-hidden rounded-[6px]"
-                style={{ width: 68, height: 96 }}
+        <div className="flex flex-col gap-1.5">
+            {/* Portada */}
+            <Link
+                href={seriesHref}
+                className="group relative block overflow-hidden rounded-[8px]"
+                style={{ aspectRatio: "2/3" }}
             >
                 {coverUrl ? (
                     <Image
@@ -47,7 +35,7 @@ export function ChapterCard({
                         alt={seriesTitle}
                         fill
                         className="object-cover transition-transform duration-200 group-hover:scale-105"
-                        sizes="68px"
+                        sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
                     />
                 ) : (
                     <div
@@ -55,72 +43,40 @@ export function ChapterCard({
                         style={{ backgroundColor: "var(--color-layer-3)" }}
                     />
                 )}
+            </Link>
 
-                {/* Número de capítulo sobre la imagen */}
-                <div
-                    className="absolute bottom-1 left-1 rounded-[3px] px-1 py-0.5 text-[9px] font-bold"
-                    style={{
-                        backgroundColor: "rgba(0,0,0,0.75)",
-                        color: "#fff",
-                        backdropFilter: "blur(2px)",
-                    }}
-                >
-                    #{chapterNumber}
-                </div>
-            </div>
+            {/* Título de la serie */}
+            <p
+                className="line-clamp-1 px-0.5 text-xs font-semibold"
+                style={{ color: "var(--color-text-1)" }}
+            >
+                {seriesTitle}
+            </p>
 
-            {/* Info */}
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-                {/* Título de la serie */}
-                <p
-                    className="line-clamp-1 text-xs font-semibold leading-tight"
-                    style={{ color: "var(--color-text-1)" }}
-                >
-                    {seriesTitle}
-                </p>
-
-                {/* Título del capítulo */}
-                <p
-                    className="line-clamp-1 text-xs"
-                    style={{ color: "var(--color-text-2)" }}
-                >
-                    {chapterTitle
-                        ? `Cap. ${chapterNumber}: ${chapterTitle}`
-                        : `Capítulo ${chapterNumber}`}
-                </p>
-
-                {/* Meta row */}
-                <div className="flex items-center gap-2 pt-0.5">
-                    {genre && (
+            {/* Botones de capítulos */}
+            <div className="flex flex-col gap-1">
+                {chapters.map((ch) => (
+                    <Link
+                        key={ch.number}
+                        href={`${seriesHref}/chapter/${ch.number}`}
+                        className="flex items-center justify-between rounded-[6px] px-2 py-1.5 transition-colors hover:opacity-80"
+                        style={{ backgroundColor: "var(--color-layer-2)" }}
+                    >
                         <span
-                            className="rounded-[4px] px-1.5 py-0.5 text-[9px] font-medium"
-                            style={{
-                                backgroundColor: genre.color
-                                    ? `${genre.color}22`
-                                    : "var(--color-layer-3)",
-                                color: genre.color ?? "var(--color-text-3)",
-                            }}
+                            className="line-clamp-1 text-[10px] font-medium"
+                            style={{ color: "var(--color-text-1)" }}
                         >
-                            {genre.name}
+                            {ch.title ? `Cap. ${ch.number}: ${ch.title}` : `Cap. ${ch.number}`}
                         </span>
-                    )}
-
-                    <span
-                        className="flex items-center gap-0.5 text-[10px]"
-                        style={{ color: "var(--color-text-3)" }}
-                    >
-                        <Eye size={10} />
-                        {formatViews(viewsCount)}
-                    </span>
-
-                    <span
-                        className="text-[10px]"
-                        style={{ color: "var(--color-text-3)" }}
-                    >
-                        {timeAgo}
-                    </span>
-                </div>
+                        <span
+                            className="ml-2 flex-shrink-0 text-[10px]"
+                            style={{ color: "var(--color-text-3)" }}
+                        >
+                            {ch.timeAgo}
+                        </span>
+                    </Link>
+                ))}
             </div>
-        </Link>
+        </div>
     );
 }

@@ -527,7 +527,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
             {/* ── Nota del autor ────────────────────────────────────────────────── */}
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                 <label style={labelStyle}>
-                    Nota del autor <span style={{ color: "var(--color-text-3)", fontWeight: 400 }}>(opcional)</span>
+                    Nota <span style={{ color: "var(--color-text-3)", fontWeight: 400 }}>(opcional)</span>
                 </label>
                 <textarea
                     value={authorNote}
