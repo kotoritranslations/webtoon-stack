@@ -12,9 +12,9 @@ import {
     CheckCircle,
     Images,
     DotsSixVertical,
-    Trash,
     Plus,
-    CaretDown,
+    ArrowUp,
+    ArrowDown,
 } from "@phosphor-icons/react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,22 +42,14 @@ interface ChapterEditFormProps {
     chapter: ChapterData;
 }
 
-// ─── Page item — can be existing or pending upload ────────────────────────────
-
 interface PageItem {
-    // For display/tracking
     localId: string;
-
-    // Existing page data (if already in DB)
     existingId?: string;
     imageUrl: string;
     imageKey: string;
     fileSize: number | null;
-
-    // Pending upload (new file)
     file?: File;
     preview: string;
-
     order: number;
     status: "idle" | "uploading" | "done" | "error";
     progress: number;
@@ -92,6 +84,50 @@ async function pLimit<T>(
     return results;
 }
 
+// ─── Convertir imagen a WebP 800px ───────────────────────────────────────────
+
+async function convertToWebP(file: File): Promise<File> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+
+        img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+
+            const MAX_WIDTH = 800;
+            const scale = img.naturalWidth > MAX_WIDTH ? MAX_WIDTH / img.naturalWidth : 1;
+            const width = Math.round(img.naturalWidth * scale);
+            const height = Math.round(img.naturalHeight * scale);
+
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return reject(new Error("Canvas no disponible"));
+
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob(
+                (blob) => {
+                    if (!blob) return reject(new Error(`No se pudo convertir: ${file.name}`));
+                    const baseName = file.name.replace(/\.[^.]+$/, "");
+                    resolve(new File([blob], `${baseName}.webp`, { type: "image/webp" }));
+                },
+                "image/webp",
+                0.88
+            );
+        };
+
+        img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error(`No se pudo leer: ${file.name}`));
+        };
+
+        img.src = objectUrl;
+    });
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
@@ -107,7 +143,7 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
     const [authorNote, setAuthorNote] = useState(chapter.authorNote ?? "");
     const [isPublished, setIsPublished] = useState(chapter.isPublished);
 
-    // ── Pages state — inicializar con páginas existentes
+    // ── Pages state
     const [pages, setPages] = useState<PageItem[]>(
         chapter.pages
             .sort((a, b) => a.order - b.order)
@@ -127,6 +163,7 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
 
     const [deletedIds, setDeletedIds] = useState<string[]>([]);
     const [isDragging, setIsDragging] = useState(false);
+    const [isConverting, setIsConverting] = useState(false);
 
     // ── Submit state
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -135,14 +172,38 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
+    // ─── Mover página con flechas ────────────────────────────────────────────────
+    const movePage = (index: number, direction: "up" | "down") => {
+        setPages((prev) => {
+            const updated = [...prev];
+            const targetIndex = direction === "up" ? index - 1 : index + 1;
+            if (targetIndex < 0 || targetIndex >= updated.length) return prev;
+            [updated[index], updated[targetIndex]] = [updated[targetIndex], updated[index]];
+            return updated.map((p, i) => ({ ...p, order: i + 1 }));
+        });
+    };
+
     // ─── Add new files ──────────────────────────────────────────────────────────
-    const addFiles = useCallback((incoming: File[]) => {
+    const addFiles = useCallback(async (incoming: File[]) => {
         const valid = incoming.filter((f) => f.type.match(/^image\/(jpeg|jpg|png|webp)$/));
+        if (valid.length === 0) return;
+
         const sorted = [...valid].sort((a, b) => extractPageNumber(a.name) - extractPageNumber(b.name));
+
+        setIsConverting(true);
+        let converted: File[];
+        try {
+            converted = await Promise.all(sorted.map(convertToWebP));
+        } catch (err: any) {
+            setError(err.message || "Error al procesar imágenes");
+            setIsConverting(false);
+            return;
+        }
+        setIsConverting(false);
 
         setPages((prev) => {
             const existingNames = new Set(prev.filter((p) => p.isNew).map((p) => p.file!.name));
-            const newItems: PageItem[] = sorted
+            const newItems: PageItem[] = converted
                 .filter((f) => !existingNames.has(f.name))
                 .map((file, i) => ({
                     localId: `new-${file.name}-${Date.now()}-${i}`,
@@ -210,13 +271,17 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
             xhr.upload.addEventListener("progress", (e) => {
                 if (e.lengthComputable) {
                     const pct = Math.round((e.loaded / e.total) * 100);
-                    setPages((prev) => prev.map((p) => p.localId === page.localId ? { ...p, progress: pct, status: "uploading" } : p));
+                    setPages((prev) => prev.map((p) =>
+                        p.localId === page.localId ? { ...p, progress: pct, status: "uploading" } : p
+                    ));
                 }
             });
-            xhr.addEventListener("load", () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`R2 error ${xhr.status}`)));
+            xhr.addEventListener("load", () =>
+                xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`R2 error ${xhr.status}`))
+            );
             xhr.addEventListener("error", () => reject(new Error("Error de red")));
             xhr.open("PUT", presigned.uploadUrl);
-            xhr.setRequestHeader("Content-Type", page.file!.type);
+            xhr.setRequestHeader("Content-Type", "image/webp");
             xhr.send(page.file!);
         });
         return { imageUrl: presigned.publicUrl, imageKey: presigned.key };
@@ -236,8 +301,6 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
 
         try {
             const newPages = pages.filter((p) => p.isNew);
-
-            // ── 1. Obtener presigned URLs para páginas nuevas ───────────────────────
             let uploadedMap = new Map<string, { imageUrl: string; imageKey: string }>();
 
             if (newPages.length > 0) {
@@ -250,7 +313,7 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                         pages: newPages.map((p) => ({
                             fileName: p.file!.name,
                             fileSize: p.file!.size,
-                            mimeType: p.file!.type,
+                            mimeType: "image/webp",
                         })),
                     }),
                 });
@@ -265,10 +328,8 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                 };
 
                 const presignedMap = new Map(presignedPages.map((p) => [p.fileName, p]));
-
                 setUploadStep("Subiendo páginas nuevas...");
 
-                // ── 2. Subir con concurrencia 3 ─────────────────────────────────────
                 const doneCount = { v: 0 };
                 const tasks = newPages.map((page) => async () => {
                     const presigned = presignedMap.get(page.file!.name)!;
@@ -276,7 +337,9 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                     doneCount.v++;
                     setUploadProgress(Math.round((doneCount.v / newPages.length) * 60));
                     setPages((prev) => prev.map((p) =>
-                        p.localId === page.localId ? { ...p, status: "done", progress: 100, imageUrl: result.imageUrl, imageKey: result.imageKey } : p
+                        p.localId === page.localId
+                            ? { ...p, status: "done", progress: 100, imageUrl: result.imageUrl, imageKey: result.imageKey }
+                            : p
                     ));
                     return { localId: page.localId, ...result };
                 });
@@ -285,11 +348,9 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                 uploadedMap = new Map(uploaded.map((u) => [u.localId, { imageUrl: u.imageUrl, imageKey: u.imageKey }]));
             }
 
-            // ── 3. Actualizar capítulo en DB ────────────────────────────────────────
             setUploadStep("Guardando cambios...");
             setUploadProgress(70);
 
-            // Leer estado actual de pages para tener las URLs actualizadas
             const currentPages = await new Promise<PageItem[]>((resolve) => {
                 setPages((prev) => { resolve(prev); return prev; });
             });
@@ -326,7 +387,6 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
             setSuccess(true);
             setDeletedIds([]);
 
-            // Sincronizar páginas con las devueltas por el servidor
             setPages(
                 updated.pages.map((p: any) => ({
                     localId: p.id,
@@ -375,9 +435,10 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
         display: "block",
     };
 
+    const isBusy = isSubmitting || isConverting;
     const newCount = pages.filter((p) => p.isNew).length;
     const doneCount = pages.filter((p) => p.status === "done").length;
-    const submitDisabled = isSubmitting || pages.length === 0;
+    const submitDisabled = isBusy || pages.length === 0;
 
     return (
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
@@ -391,7 +452,7 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                     <input
                         type="number" step="0.5" min="0.5"
                         value={number} onChange={(e) => setNumber(e.target.value)}
-                        disabled={isSubmitting} style={inputStyle}
+                        disabled={isBusy} style={inputStyle}
                         onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-text-3)")}
                         onBlur={(e) => (e.currentTarget.style.borderColor = "var(--color-layer-4)")}
                     />
@@ -403,7 +464,7 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                     <input
                         type="text" value={title} onChange={(e) => setTitle(e.target.value)}
                         placeholder="Ej: El comienzo" maxLength={120}
-                        disabled={isSubmitting} style={inputStyle}
+                        disabled={isBusy} style={inputStyle}
                         onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-text-3)")}
                         onBlur={(e) => (e.currentTarget.style.borderColor = "var(--color-layer-4)")}
                     />
@@ -417,7 +478,7 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                 </label>
                 <textarea
                     value={authorNote} onChange={(e) => setAuthorNote(e.target.value)}
-                    rows={3} maxLength={500} disabled={isSubmitting}
+                    rows={3} maxLength={500} disabled={isBusy}
                     style={{ ...inputStyle, resize: "vertical", lineHeight: 1.65 }}
                     onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-text-3)")}
                     onBlur={(e) => (e.currentTarget.style.borderColor = "var(--color-layer-4)")}
@@ -445,37 +506,55 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                             </span>
                         )}
                         <span style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>
-                            {pages.length} total · arrastra para reordenar
+                            {pages.length} total
                         </span>
                     </div>
                 </div>
 
-                {/* Drop zone para agregar más */}
+                {/* Drop zone */}
                 <div
                     onDragOver={onZoneDragOver}
                     onDragEnter={onZoneDragEnter}
                     onDragLeave={onZoneDragLeave}
                     onDrop={onZoneDrop}
-                    onClick={() => !isSubmitting && fileInputRef.current?.click()}
+                    onClick={() => !isBusy && fileInputRef.current?.click()}
                     style={{
-                        cursor: isSubmitting ? "default" : "pointer",
+                        cursor: isBusy ? "default" : "pointer",
                         borderRadius: "var(--radius-lg)",
                         border: `1.5px dashed ${isDragging ? "var(--color-text-2)" : "var(--color-layer-4)"}`,
-                        backgroundColor: isDragging ? "color-mix(in srgb, var(--color-text-1) 4%, transparent)" : "var(--color-layer-2)",
+                        backgroundColor: isDragging
+                            ? "color-mix(in srgb, var(--color-text-1) 4%, transparent)"
+                            : "var(--color-layer-2)",
                         padding: "1.25rem 2rem",
                         display: "flex", alignItems: "center", justifyContent: "center", gap: "0.75rem",
                         transition: "border-color 0.15s, background-color 0.15s",
                     }}
                 >
-                    <Plus size={18} weight="thin" style={{ color: "var(--color-text-3)" }} />
-                    <div>
-                        <p style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--color-text-2)" }}>
-                            Agregar más páginas
-                        </p>
-                        <p style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>
-                            JPG, PNG, WEBP · se ordenan por nombre
-                        </p>
-                    </div>
+                    {isConverting ? (
+                        <>
+                            <CircleNotch size={18} weight="bold" style={{ color: "var(--color-text-3)", animation: "spin 0.8s linear infinite" }} />
+                            <div>
+                                <p style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--color-text-2)" }}>
+                                    Procesando imágenes...
+                                </p>
+                                <p style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>
+                                    Convirtiendo a WebP · 800px
+                                </p>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <Plus size={18} weight="thin" style={{ color: "var(--color-text-3)" }} />
+                            <div>
+                                <p style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--color-text-2)" }}>
+                                    Agregar más páginas
+                                </p>
+                                <p style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>
+                                    JPG, PNG, WEBP · se convierten a WebP 800px
+                                </p>
+                            </div>
+                        </>
+                    )}
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -496,7 +575,7 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                         {pages.map((page, index) => (
                             <div
                                 key={page.localId}
-                                draggable={!isSubmitting}
+                                draggable={!isBusy}
                                 onDragStart={() => onDragStart(index)}
                                 onDragEnter={() => onDragEnter(index)}
                                 onDragEnd={onDragEnd}
@@ -507,7 +586,7 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                                     borderRadius: "var(--radius-md)",
                                     overflow: "hidden",
                                     backgroundColor: "var(--color-layer-3)",
-                                    cursor: isSubmitting ? "default" : "grab",
+                                    cursor: isBusy ? "default" : "grab",
                                     border: page.isNew
                                         ? "2px solid #22c55e"
                                         : "1px solid var(--color-layer-4)",
@@ -521,7 +600,12 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
 
                                 {/* Upload overlay */}
                                 {page.status === "uploading" && (
-                                    <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.25rem" }}>
+                                    <div style={{
+                                        position: "absolute", inset: 0,
+                                        backgroundColor: "rgba(0,0,0,0.5)",
+                                        display: "flex", flexDirection: "column",
+                                        alignItems: "center", justifyContent: "center", gap: "0.25rem",
+                                    }}>
                                         <CircleNotch size={18} weight="bold" style={{ color: "#fff", animation: "spin 0.8s linear infinite" }} />
                                         <span style={{ fontSize: "0.6875rem", color: "#fff", fontVariantNumeric: "tabular-nums" }}>{page.progress}%</span>
                                     </div>
@@ -529,43 +613,100 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
 
                                 {/* New badge */}
                                 {page.isNew && page.status === "idle" && (
-                                    <div style={{ position: "absolute", top: "0.25rem", left: "0.25rem", borderRadius: "var(--radius-xs)", backgroundColor: "#22c55e", padding: "0.1rem 0.35rem", fontSize: "0.625rem", fontWeight: 700, color: "#fff" }}>
+                                    <div style={{
+                                        position: "absolute", top: "0.25rem", left: "0.25rem",
+                                        borderRadius: "var(--radius-xs)",
+                                        backgroundColor: "#22c55e",
+                                        padding: "0.1rem 0.35rem",
+                                        fontSize: "0.625rem", fontWeight: 700, color: "#fff",
+                                    }}>
                                         NEW
                                     </div>
                                 )}
 
                                 {/* Número de orden */}
-                                <div style={{ position: "absolute", bottom: "0.25rem", left: "0.25rem", borderRadius: "var(--radius-xs)", backgroundColor: "rgba(0,0,0,0.6)", padding: "0.125rem 0.375rem", fontSize: "0.6875rem", fontWeight: 600, color: "#fff", fontVariantNumeric: "tabular-nums" }}>
+                                <div style={{
+                                    position: "absolute", bottom: "0.25rem", left: "0.25rem",
+                                    borderRadius: "var(--radius-xs)",
+                                    backgroundColor: "rgba(0,0,0,0.6)",
+                                    padding: "0.125rem 0.375rem",
+                                    fontSize: "0.6875rem", fontWeight: 600, color: "#fff",
+                                    fontVariantNumeric: "tabular-nums",
+                                }}>
                                     {page.order}
                                 </div>
 
-                                {/* Drag handle */}
-                                {!isSubmitting && (
-                                    <div style={{ position: "absolute", top: "0.25rem", left: page.isNew ? "auto" : "0.25rem", right: page.isNew ? "auto" : "auto", color: "rgba(255,255,255,0.7)" }}>
-                                        <DotsSixVertical size={14} weight="bold" />
-                                    </div>
-                                )}
+                                {/* Controles: flechas + eliminar */}
+                                {!isBusy && (
+                                    <div style={{
+                                        position: "absolute", top: "0.25rem", right: "0.25rem",
+                                        display: "flex", flexDirection: "column", gap: "0.2rem",
+                                    }}>
+                                        {/* Eliminar */}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); removePage(page.localId); }}
+                                            title="Eliminar"
+                                            style={{
+                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                width: "1.25rem", height: "1.25rem",
+                                                borderRadius: "var(--radius-xs)", border: "none",
+                                                backgroundColor: "rgba(0,0,0,0.65)",
+                                                color: "#fff", cursor: "pointer", padding: 0,
+                                            }}
+                                        >
+                                            <X size={10} weight="bold" />
+                                        </button>
 
-                                {/* Delete btn */}
-                                {!isSubmitting && (
-                                    <button
-                                        type="button"
-                                        onClick={(e) => { e.stopPropagation(); removePage(page.localId); }}
-                                        style={{
-                                            position: "absolute", top: "0.25rem", right: "0.25rem",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            width: "1.25rem", height: "1.25rem",
-                                            borderRadius: "var(--radius-xs)", border: "none",
-                                            backgroundColor: "rgba(0,0,0,0.6)",
-                                            color: "#fff", cursor: "pointer", padding: 0,
-                                        }}
-                                    >
-                                        <X size={10} weight="bold" />
-                                    </button>
+                                        {/* Subir */}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); movePage(index, "up"); }}
+                                            disabled={index === 0}
+                                            title="Mover arriba"
+                                            style={{
+                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                width: "1.25rem", height: "1.25rem",
+                                                borderRadius: "var(--radius-xs)", border: "none",
+                                                backgroundColor: "rgba(0,0,0,0.65)",
+                                                color: index === 0 ? "rgba(255,255,255,0.25)" : "#fff",
+                                                cursor: index === 0 ? "default" : "pointer",
+                                                padding: 0,
+                                            }}
+                                        >
+                                            <ArrowUp size={10} weight="bold" />
+                                        </button>
+
+                                        {/* Bajar */}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); movePage(index, "down"); }}
+                                            disabled={index === pages.length - 1}
+                                            title="Mover abajo"
+                                            style={{
+                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                width: "1.25rem", height: "1.25rem",
+                                                borderRadius: "var(--radius-xs)", border: "none",
+                                                backgroundColor: "rgba(0,0,0,0.65)",
+                                                color: index === pages.length - 1 ? "rgba(255,255,255,0.25)" : "#fff",
+                                                cursor: index === pages.length - 1 ? "default" : "pointer",
+                                                padding: 0,
+                                            }}
+                                        >
+                                            <ArrowDown size={10} weight="bold" />
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         ))}
                     </div>
+                )}
+
+                {/* Hint de reorden */}
+                {pages.length > 1 && !isBusy && (
+                    <p style={{ fontSize: "0.75rem", color: "var(--color-text-3)", textAlign: "center" }}>
+                        Usa las flechas ↑↓ en cada imagen o arrastra para reordenar
+                    </p>
                 )}
 
                 {/* Progress bar de subida */}
@@ -578,7 +719,12 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                             </span>
                         </div>
                         <div style={{ height: "2px", borderRadius: "var(--radius-full)", backgroundColor: "var(--color-layer-4)", overflow: "hidden" }}>
-                            <div style={{ height: "100%", width: `${uploadProgress}%`, borderRadius: "var(--radius-full)", backgroundColor: "var(--color-text-1)", transition: "width 0.3s ease" }} />
+                            <div style={{
+                                height: "100%", width: `${uploadProgress}%`,
+                                borderRadius: "var(--radius-full)",
+                                backgroundColor: "var(--color-text-1)",
+                                transition: "width 0.3s ease",
+                            }} />
                         </div>
                     </div>
                 )}
@@ -587,7 +733,7 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
             {/* ── Publicar ──────────────────────────────────────────────────────── */}
             <label style={{
                 display: "flex", alignItems: "flex-start", gap: "0.75rem",
-                cursor: isSubmitting ? "default" : "pointer",
+                cursor: isBusy ? "default" : "pointer",
                 padding: "1rem",
                 borderRadius: "var(--radius-md)",
                 border: `1px solid ${isPublished ? "var(--color-layer-4)" : "var(--color-layer-3)"}`,
@@ -595,7 +741,7 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                 transition: "all 0.15s",
             }}>
                 <span
-                    onClick={() => !isSubmitting && setIsPublished(!isPublished)}
+                    onClick={() => !isBusy && setIsPublished(!isPublished)}
                     style={{
                         display: "flex", alignItems: "center", justifyContent: "center",
                         height: "1rem", width: "1rem", marginTop: "0.1rem", flexShrink: 0,
@@ -624,7 +770,13 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
 
             {/* ── Error ─────────────────────────────────────────────────────────── */}
             {error && (
-                <div style={{ borderRadius: "var(--radius-md)", border: "1px solid color-mix(in srgb, var(--color-error) 25%, transparent)", backgroundColor: "color-mix(in srgb, var(--color-error) 8%, transparent)", padding: "0.75rem 1rem", display: "flex", alignItems: "center", gap: "0.625rem" }}>
+                <div style={{
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid color-mix(in srgb, var(--color-error) 25%, transparent)",
+                    backgroundColor: "color-mix(in srgb, var(--color-error) 8%, transparent)",
+                    padding: "0.75rem 1rem",
+                    display: "flex", alignItems: "center", gap: "0.625rem",
+                }}>
                     <Warning size={16} weight="bold" style={{ color: "var(--color-error)", flexShrink: 0 }} />
                     <p style={{ fontSize: "0.8125rem", color: "var(--color-error)" }}>{error}</p>
                 </div>
@@ -632,7 +784,13 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
 
             {/* ── Success ───────────────────────────────────────────────────────── */}
             {success && (
-                <div style={{ borderRadius: "var(--radius-md)", border: "1px solid color-mix(in srgb, #22c55e 25%, transparent)", backgroundColor: "color-mix(in srgb, #22c55e 8%, transparent)", padding: "0.75rem 1rem", display: "flex", alignItems: "center", gap: "0.625rem" }}>
+                <div style={{
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid color-mix(in srgb, #22c55e 25%, transparent)",
+                    backgroundColor: "color-mix(in srgb, #22c55e 8%, transparent)",
+                    padding: "0.75rem 1rem",
+                    display: "flex", alignItems: "center", gap: "0.625rem",
+                }}>
                     <CheckCircle size={16} weight="fill" style={{ color: "#22c55e", flexShrink: 0 }} />
                     <p style={{ fontSize: "0.8125rem", color: "#22c55e" }}>Cambios guardados correctamente</p>
                 </div>
@@ -641,7 +799,7 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
             {/* ── Actions ───────────────────────────────────────────────────────── */}
             <div style={{ display: "flex", gap: "0.75rem", paddingTop: "0.5rem" }}>
                 <button
-                    type="button" onClick={() => router.back()} disabled={isSubmitting}
+                    type="button" onClick={() => router.back()} disabled={isBusy}
                     style={{
                         display: "flex", alignItems: "center", gap: "0.5rem",
                         padding: "0.75rem 1.25rem",
@@ -650,11 +808,11 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                         backgroundColor: "transparent",
                         color: "var(--color-text-2)",
                         fontSize: "0.875rem", fontWeight: 500,
-                        cursor: isSubmitting ? "not-allowed" : "pointer",
-                        opacity: isSubmitting ? 0.5 : 1,
+                        cursor: isBusy ? "not-allowed" : "pointer",
+                        opacity: isBusy ? 0.5 : 1,
                         fontFamily: "var(--font-sans)",
                     }}
-                    onMouseEnter={(e) => { if (!isSubmitting) { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-text-3)"; (e.currentTarget as HTMLElement).style.color = "var(--color-text-1)"; } }}
+                    onMouseEnter={(e) => { if (!isBusy) { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-text-3)"; (e.currentTarget as HTMLElement).style.color = "var(--color-text-1)"; } }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-layer-4)"; (e.currentTarget as HTMLElement).style.color = "var(--color-text-2)"; }}
                 >
                     <ArrowLeft size={15} weight="bold" />
@@ -677,10 +835,13 @@ export function ChapterEditForm({ chapter }: ChapterEditFormProps) {
                         fontFamily: "var(--font-sans)",
                     }}
                 >
-                    {isSubmitting
-                        ? <><CircleNotch size={16} weight="bold" style={{ animation: "spin 0.8s linear infinite" }} /> {uploadStep || "Guardando..."}</>
-                        : "Guardar cambios"
-                    }
+                    {isConverting ? (
+                        <><CircleNotch size={16} weight="bold" style={{ animation: "spin 0.8s linear infinite" }} /> Procesando imágenes...</>
+                    ) : isSubmitting ? (
+                        <><CircleNotch size={16} weight="bold" style={{ animation: "spin 0.8s linear infinite" }} /> {uploadStep || "Guardando..."}</>
+                    ) : (
+                        "Guardar cambios"
+                    )}
                 </button>
             </div>
 

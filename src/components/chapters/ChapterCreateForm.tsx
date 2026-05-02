@@ -86,6 +86,62 @@ async function pLimit<T>(
     return results;
 }
 
+// ─── Convertir imagen a WebP 800px de ancho ───────────────────────────────────
+//
+// - Si el ancho original > 800px  → escala a 800px, alto proporcional
+// - Si el ancho original ≤ 800px  → no amplía, solo convierte a WebP
+// - Calidad 0.85 → buen balance entre peso y nitidez para tiras de manga/cómic
+
+async function convertToWebP(file: File): Promise<File> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+
+        img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+
+            const MAX_WIDTH = 800;
+            const scale = img.naturalWidth > MAX_WIDTH
+                ? MAX_WIDTH / img.naturalWidth
+                : 1;
+
+            const width = Math.round(img.naturalWidth * scale);
+            const height = Math.round(img.naturalHeight * scale);
+
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+                return reject(new Error("Canvas no disponible"));
+            }
+
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob(
+                (blob) => {
+                    if (!blob) return reject(new Error(`No se pudo convertir: ${file.name}`));
+                    const baseName = file.name.replace(/\.[^.]+$/, "");
+                    const converted = new File([blob], `${baseName}.webp`, {
+                        type: "image/webp",
+                    });
+                    resolve(converted);
+                },
+                "image/webp",
+                0.88
+            );
+        };
+
+        img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error(`No se pudo leer: ${file.name}`));
+        };
+
+        img.src = objectUrl;
+    });
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateFormProps) {
@@ -103,6 +159,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
     // ── Pages state
     const [pages, setPages] = useState<PageFile[]>([]);
     const [isDragging, setIsDragging] = useState(false);
+    const [isConverting, setIsConverting] = useState(false);
 
     // ── Upload / result state
     const [isUploading, setIsUploading] = useState(false);
@@ -114,17 +171,32 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
     const dragOverItem = useRef<number | null>(null);
 
     // ─── Add files ──────────────────────────────────────────────────────────────
-    const addFiles = useCallback((incoming: File[]) => {
+    const addFiles = useCallback(async (incoming: File[]) => {
         const valid = incoming.filter((f) =>
             f.type.match(/^image\/(jpeg|jpg|png|webp)$/)
         );
         if (valid.length !== incoming.length) {
             setError(`${incoming.length - valid.length} archivo(s) ignorados — solo JPG, PNG o WEBP`);
         }
+        if (valid.length === 0) return;
+
         const sorted = sortByFilename(valid);
+
+        // Convertir a WebP/800px antes de agregar al estado
+        setIsConverting(true);
+        let converted: File[];
+        try {
+            converted = await Promise.all(sorted.map(convertToWebP));
+        } catch (err: any) {
+            setError(err.message || "Error al procesar imágenes");
+            setIsConverting(false);
+            return;
+        }
+        setIsConverting(false);
+
         setPages((prev) => {
             const existing = new Set(prev.map((p) => p.file.name));
-            const newPages: PageFile[] = sorted
+            const newPages: PageFile[] = converted
                 .filter((f) => !existing.has(f.name))
                 .map((file, i) => ({
                     id: `${file.name}-${Date.now()}-${i}`,
@@ -204,7 +276,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
             xhr.addEventListener("error", () => reject(new Error("Error de red")));
             xhr.addEventListener("abort", () => reject(new Error("Cancelado")));
             xhr.open("PUT", presigned.uploadUrl);
-            xhr.setRequestHeader("Content-Type", page.file.type);
+            xhr.setRequestHeader("Content-Type", "image/webp");
             xhr.send(page.file);
         });
         return { imageUrl: presigned.publicUrl, imageKey: presigned.key };
@@ -241,7 +313,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                     pages: pages.map((p) => ({
                         fileName: p.file.name,
                         fileSize: p.file.size,
-                        mimeType: p.file.type,
+                        mimeType: "image/webp",
                     })),
                 }),
             });
@@ -347,7 +419,8 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
     };
 
     const doneCount = pages.filter((p) => p.status === "done").length;
-    const submitDisabled = isUploading || !selectedSeriesId || !chapterNumber || pages.length === 0;
+    const isBusy = isUploading || isConverting;
+    const submitDisabled = isBusy || !selectedSeriesId || !chapterNumber || pages.length === 0;
 
     // ─── Success screen ──────────────────────────────────────────────────────────
     if (createdChapter) {
@@ -441,7 +514,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                         Agregar otro
                     </button>
                 </div>
-            </div >
+            </div>
         );
     }
 
@@ -463,7 +536,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                         <select
                             value={selectedSeriesId}
                             onChange={(e) => setSelectedSeriesId(e.target.value)}
-                            disabled={isUploading}
+                            disabled={isBusy}
                             style={{ ...inputStyle, appearance: "none", paddingRight: "2.5rem", cursor: "pointer" }}
                             onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-text-3)")}
                             onBlur={(e) => (e.currentTarget.style.borderColor = "var(--color-layer-4)")}
@@ -500,7 +573,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                         value={chapterNumber}
                         onChange={(e) => setChapterNumber(e.target.value)}
                         placeholder="1"
-                        disabled={isUploading}
+                        disabled={isBusy}
                         style={inputStyle}
                         onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-text-3)")}
                         onBlur={(e) => (e.currentTarget.style.borderColor = "var(--color-layer-4)")}
@@ -516,7 +589,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                         onChange={(e) => setChapterTitle(e.target.value)}
                         placeholder="Ej: El comienzo"
                         maxLength={120}
-                        disabled={isUploading}
+                        disabled={isBusy}
                         style={inputStyle}
                         onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-text-3)")}
                         onBlur={(e) => (e.currentTarget.style.borderColor = "var(--color-layer-4)")}
@@ -535,7 +608,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                     placeholder="Algo que quieras decirle a tus lectores..."
                     rows={3}
                     maxLength={500}
-                    disabled={isUploading}
+                    disabled={isBusy}
                     style={{ ...inputStyle, resize: "vertical", lineHeight: 1.65 }}
                     onFocus={(e) => (e.currentTarget.style.borderColor = "var(--color-text-3)")}
                     onBlur={(e) => (e.currentTarget.style.borderColor = "var(--color-layer-4)")}
@@ -563,9 +636,9 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                     onDragEnter={onZoneDragEnter}
                     onDragLeave={onZoneDragLeave}
                     onDrop={onZoneDrop}
-                    onClick={() => !isUploading && fileInputRef.current?.click()}
+                    onClick={() => !isBusy && fileInputRef.current?.click()}
                     style={{
-                        cursor: isUploading ? "default" : "pointer",
+                        cursor: isBusy ? "default" : "pointer",
                         borderRadius: "var(--radius-lg)",
                         border: `1.5px dashed ${isDragging ? "var(--color-text-2)" : "var(--color-layer-4)"}`,
                         backgroundColor: isDragging
@@ -576,13 +649,36 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                         transition: "border-color 0.15s, background-color 0.15s",
                     }}
                 >
-                    <Images size={32} weight="thin" style={{ margin: "0 auto 0.75rem", color: "var(--color-text-3)" }} />
-                    <p style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--color-text-2)", marginBottom: "0.25rem" }}>
-                        {pages.length === 0 ? "Arrastra tus páginas aquí o haz clic" : "Agregar más páginas"}
-                    </p>
-                    <p style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>
-                        JPG, PNG, WEBP · se ordenan automáticamente por nombre
-                    </p>
+                    {isConverting ? (
+                        <>
+                            <CircleNotch
+                                size={32}
+                                weight="bold"
+                                style={{
+                                    margin: "0 auto 0.75rem",
+                                    color: "var(--color-text-3)",
+                                    animation: "spin 0.8s linear infinite",
+                                    display: "block",
+                                }}
+                            />
+                            <p style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--color-text-2)", marginBottom: "0.25rem" }}>
+                                Procesando imágenes...
+                            </p>
+                            <p style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>
+                                Convirtiendo a WebP · 800px
+                            </p>
+                        </>
+                    ) : (
+                        <>
+                            <Images size={32} weight="thin" style={{ margin: "0 auto 0.75rem", color: "var(--color-text-3)", display: "block" }} />
+                            <p style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--color-text-2)", marginBottom: "0.25rem" }}>
+                                {pages.length === 0 ? "Arrastra tus páginas aquí o haz clic" : "Agregar más páginas"}
+                            </p>
+                            <p style={{ fontSize: "0.75rem", color: "var(--color-text-3)" }}>
+                                JPG, PNG, WEBP · se convierten a WebP 800px automáticamente
+                            </p>
+                        </>
+                    )}
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -603,7 +699,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                         {pages.map((page, index) => (
                             <div
                                 key={page.id}
-                                draggable={!isUploading}
+                                draggable={!isBusy}
                                 onDragStart={() => onDragStart(index)}
                                 onDragEnter={() => onDragEnter(index)}
                                 onDragEnd={onDragEnd}
@@ -614,7 +710,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                                     borderRadius: "var(--radius-md)",
                                     overflow: "hidden",
                                     backgroundColor: "var(--color-layer-3)",
-                                    cursor: isUploading ? "default" : "grab",
+                                    cursor: isBusy ? "default" : "grab",
                                     border: page.status === "error"
                                         ? "1px solid var(--color-error)"
                                         : "1px solid var(--color-layer-4)",
@@ -679,13 +775,13 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                                     {page.order}
                                 </div>
 
-                                {!isUploading && (
+                                {!isBusy && (
                                     <div style={{ position: "absolute", top: "0.25rem", left: "0.25rem", color: "rgba(255,255,255,0.7)" }}>
                                         <DotsSixVertical size={14} weight="bold" />
                                     </div>
                                 )}
 
-                                {!isUploading && (
+                                {!isBusy && (
                                     <button
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); removePage(page.id); }}
@@ -737,7 +833,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                     display: "flex",
                     alignItems: "flex-start",
                     gap: "0.75rem",
-                    cursor: isUploading ? "default" : "pointer",
+                    cursor: isBusy ? "default" : "pointer",
                     padding: "1rem",
                     borderRadius: "var(--radius-md)",
                     border: `1px solid ${isPublished ? "var(--color-layer-4)" : "var(--color-layer-3)"}`,
@@ -746,7 +842,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                 }}
             >
                 <span
-                    onClick={() => !isUploading && setIsPublished(!isPublished)}
+                    onClick={() => !isBusy && setIsPublished(!isPublished)}
                     style={{
                         display: "flex", alignItems: "center", justifyContent: "center",
                         height: "1rem", width: "1rem", marginTop: "0.1rem", flexShrink: 0,
@@ -794,7 +890,7 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                 <button
                     type="button"
                     onClick={() => router.back()}
-                    disabled={isUploading}
+                    disabled={isBusy}
                     style={{
                         display: "flex", alignItems: "center", gap: "0.5rem",
                         padding: "0.75rem 1.25rem",
@@ -803,12 +899,12 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                         backgroundColor: "transparent",
                         color: "var(--color-text-2)",
                         fontSize: "0.875rem", fontWeight: 500,
-                        cursor: isUploading ? "not-allowed" : "pointer",
-                        opacity: isUploading ? 0.5 : 1,
+                        cursor: isBusy ? "not-allowed" : "pointer",
+                        opacity: isBusy ? 0.5 : 1,
                         transition: "all 0.15s",
                         fontFamily: "var(--font-sans)",
                     }}
-                    onMouseEnter={(e) => { if (!isUploading) { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-text-3)"; (e.currentTarget as HTMLElement).style.color = "var(--color-text-1)"; } }}
+                    onMouseEnter={(e) => { if (!isBusy) { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-text-3)"; (e.currentTarget as HTMLElement).style.color = "var(--color-text-1)"; } }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-layer-4)"; (e.currentTarget as HTMLElement).style.color = "var(--color-text-2)"; }}
                 >
                     <ArrowLeft size={15} weight="bold" />
@@ -833,7 +929,12 @@ export function ChapterCreateForm({ series, defaultSeriesId }: ChapterCreateForm
                         fontFamily: "var(--font-sans)",
                     }}
                 >
-                    {isUploading ? (
+                    {isConverting ? (
+                        <>
+                            <CircleNotch size={16} weight="bold" style={{ animation: "spin 0.8s linear infinite" }} />
+                            Procesando imágenes...
+                        </>
+                    ) : isUploading ? (
                         <>
                             <CircleNotch size={16} weight="bold" style={{ animation: "spin 0.8s linear infinite" }} />
                             Subiendo {doneCount}/{pages.length}...
