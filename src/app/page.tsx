@@ -1,18 +1,18 @@
+// src/app/page.tsx
+
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Clock, Star, ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import { ChapterCard } from "@/components/home/ChapterCard";
 import { FeaturedSlider } from "@/components/home/FeaturedSlider";
+import { siteConfig } from "@/config/site";
 
 export const metadata = {
-  title: "SITE — Lee series gratis",
-  description:
-    "Descubre miles de series de webtoon, manga y cómics. Lee los últimos capítulos publicados por tus creadores favoritos.",
+  title: `${siteConfig.name} — ${siteConfig.description}`,
+  description: siteConfig.tagline,
 };
 
 export const revalidate = 300;
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 export function timeAgo(date: Date): string {
   const diff = Date.now() - date.getTime();
@@ -25,13 +25,11 @@ export function timeAgo(date: Date): string {
   return `hace ${Math.floor(days / 30)} mes`;
 }
 
-// ─── Data fetching ────────────────────────────────────────────────────────────
-
 async function getFeaturedSeries() {
   return prisma.series.findMany({
     where: { isPublished: true, isActive: true, coverUrl: { not: null } },
-    orderBy: [{ bookmarksCount: "desc" }, { viewsCount: "desc" }],
-    take: 18,
+    orderBy: { createdAt: "desc" }, // ← más recientes
+    take: 7,                        // ← solo 7
     select: {
       id: true,
       slug: true,
@@ -56,7 +54,7 @@ async function getRecentChapters() {
   const series = await prisma.series.findMany({
     where: { isPublished: true, isActive: true, coverUrl: { not: null } },
     orderBy: { updatedAt: "desc" },
-    take: 18, // ← limitado a 18
+    take: 18,
     select: {
       id: true,
       slug: true,
@@ -77,8 +75,6 @@ async function getRecentChapters() {
 
   return series.filter((s) => s.chapters.length > 0);
 }
-
-// ─── Section header ───────────────────────────────────────────────────────────
 
 function SectionHeader({
   icon,
@@ -116,8 +112,6 @@ function SectionHeader({
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default async function HomePage() {
   const [series, recentSeries] = await Promise.all([
     getFeaturedSeries(),
@@ -129,12 +123,10 @@ export default async function HomePage() {
       className="flex flex-col gap-10 py-8"
       style={{ backgroundColor: "var(--color-layer-1)" }}
     >
-      {/* Series destacadas */}
       <section>
         <FeaturedSlider items={series} />
       </section>
 
-      {/* Últimos capítulos */}
       <section>
         <div className="mx-auto w-full max-w-[1280px] grid grid-cols-2 gap-3 px-4 sm:grid-cols-3 sm:px-6 md:grid-cols-4 lg:grid-cols-6">
           {recentSeries.map((s) => (

@@ -5,6 +5,7 @@ import { Navbar } from "@/components/navbar";
 import { Sidebar } from "@/components/sidebar";
 import { SidebarProvider } from "@/context/sidebar-context";
 import { Footer } from "@/components/Footer";
+import { siteConfig } from "@/config/site";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -20,8 +21,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SITE — Lee series gratis",
-  description: "Descubre miles de series de webtoon, manga y cómics de creadores independientes.",
+  title: `${siteConfig.name} — ${siteConfig.description}`,
+  description: siteConfig.tagline,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -55,23 +56,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <SidebarProvider>
             <div className="flex min-h-screen">
-
-              {/* Sidebar fijo a la izquierda */}
               <Sidebar />
-
-              {/* Columna derecha: navbar + contenido + footer */}
               <div className="flex min-w-0 flex-1 flex-col lg:pl-14">
-
-                {/* Navbar solo sobre el contenido principal */}
                 <Navbar />
-
                 <main className="flex-1">
                   {children}
                 </main>
-
                 <Footer />
               </div>
-
             </div>
           </SidebarProvider>
         </AuthProvider>

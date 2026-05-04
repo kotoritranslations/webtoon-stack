@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useEffect } from "react";
 import { User, SignOut, Gear, BookOpen, SquaresFour } from "@phosphor-icons/react";
 import { NotificationsDropdown } from "@/components/notifications/NotificationsDropdown";
+import { siteConfig } from "@/config/site";
 
 export function Navbar() {
   const { data: session, status } = useSession();
@@ -54,10 +55,26 @@ export function Navbar() {
       <div className="flex items-center gap-6">
         <Link
           href="/"
-          className="text-sm font-bold tracking-[-0.05em] transition-opacity hover:opacity-70"
-          style={{ color: "var(--color-text-1)" }}
+          className="flex items-center transition-opacity hover:opacity-70"
         >
-          SITE
+          {siteConfig.logoUrl ? (
+            <Image
+              src={siteConfig.logoUrl}
+              alt={siteConfig.name}
+              width={80}
+              height={28}
+              className="object-contain"
+              style={{ maxHeight: 28 }}
+              priority
+            />
+          ) : (
+            <span
+              className="text-sm font-bold tracking-[-0.05em]"
+              style={{ color: "var(--color-text-1)" }}
+            >
+              {siteConfig.name}
+            </span>
+          )}
         </Link>
 
         {/* Nav links */}

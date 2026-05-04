@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { siteConfig } from "@/config/site";
 import {
     BookOpen,
     Eye,
@@ -30,8 +31,8 @@ export async function generateMetadata({
     });
     if (!series) return {};
     return {
-        title: `${series.title} — SITE`,
-        description: series.synopsis ?? `Lee ${series.title} gratis en SITE`,
+        title: `${series.title} — ${siteConfig.name}`,
+        description: series.synopsis ?? `Lee ${series.title} gratis en ${siteConfig.name}`,
         openGraph: {
             images: series.coverUrl ? [series.coverUrl] : [],
         },

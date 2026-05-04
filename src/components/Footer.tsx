@@ -2,6 +2,7 @@
 
 // src/components/Footer.tsx
 import Link from "next/link";
+import { siteConfig } from "@/config/site";
 
 const LEGAL = [
     { label: "Términos", href: "/terms" },
@@ -17,7 +18,7 @@ export function Footer() {
             style={{ borderTop: "1px solid var(--color-border)" }}
         >
             <p className="text-xs" style={{ color: "var(--color-text-3)" }}>
-                © {new Date().getFullYear()} SITE. Todos los derechos reservados.
+                © {new Date().getFullYear()} {siteConfig.name}. Todos los derechos reservados.
             </p>
 
             <nav className="flex items-center gap-4">

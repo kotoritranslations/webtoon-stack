@@ -2,11 +2,12 @@
 
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { siteConfig } from "@/config/site";
 import { ChaptersGrid } from "@/components/chapters/ChaptersGrid";
 
 export const metadata: Metadata = {
-    title: "Últimos capítulos — SITE",
-    description: "Los capítulos más recientes de todas las series publicadas en SITE.",
+    title: `Últimos capítulos — ${siteConfig.name}`,
+    description: `Los capítulos más recientes de todas las series publicadas en ${siteConfig.name}.`,
 };
 
 const PAGE_SIZE = 24;

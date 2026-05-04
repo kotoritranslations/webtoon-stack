@@ -10,17 +10,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "storage.kisfer.com",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "i.pinimg.com",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "storage.khiing.com",
+        hostname: "**",
         pathname: "/**",
       },
     ],

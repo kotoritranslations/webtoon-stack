@@ -3,6 +3,7 @@
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { siteConfig } from "@/config/site";
 import { CreatorProfileClient } from "@/components/creator/CreatorProfileClient";
 
 // ============================================
@@ -242,10 +243,10 @@ export async function generateMetadata({ params }: PageProps) {
   const name = creator.displayName || creator.username;
 
   return {
-    title: `${name} — SITE`,
+    title: `${name} — ${siteConfig.name}`,
     description: creator.bio || `Perfil de ${name}. Descubre sus series y últimos capítulos.`,
     openGraph: {
-      title: `${name} — SITE`,
+      title: `${name} — ${siteConfig.name}`,
       description: creator.bio || `Perfil de ${name}`,
     },
   };

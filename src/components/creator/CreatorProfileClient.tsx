@@ -314,7 +314,7 @@ export function CreatorProfileClient({
                     <div className="mb-1 flex items-center gap-2">
                         {isOwner ? (
                             <Link
-                                href="/dashboard/settings"
+                                href="/settings"
                                 className="rounded-[8px] px-4 py-2 text-[13px] font-semibold transition-colors"
                                 style={{
                                     backgroundColor: "var(--color-layer-3)",

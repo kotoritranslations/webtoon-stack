@@ -4,10 +4,11 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { LibraryFilters } from "@/components/library/LibraryFilters";
 import { LibraryGrid } from "@/components/library/LibraryGrid";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
-    title: "Biblioteca — SITE",
-    description: "Descubre webtoons, manga, manhwa y más. Filtra por género, formato y estado.",
+    title: `Biblioteca — ${siteConfig.name}`,
+    description: `Descubre webtoons, manga, manhwa y más. Filtra por género, formato y estado en ${siteConfig.name}.`,
 };
 
 type SearchParams = {
