@@ -33,6 +33,7 @@ model User {
 
   // === CREATOR STATUS ===
   isCreator Boolean @default(false)
+  isAdmin   Boolean @default(false)
 
   // === STATS ===
   followersCount Int @default(0)
@@ -493,4 +494,33 @@ model NotificationPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_preferences")
+}
+
+model SiteConfig {
+  id          String @id @default("default")
+
+  // Identidad
+  siteName        String  @default("Mi Sitio")
+  siteDescription String? @db.Text
+  siteTagline     String? @db.Text
+  siteUrl         String?
+  logoUrl         String?
+  logoDarkUrl     String?
+  faviconUrl  String?
+
+  // Redes sociales del sitio
+  socialTwitter   String?
+  socialInstagram String?
+  socialYoutube   String?
+  socialTiktok    String?
+  socialWebsite   String?
+
+  // Configuración de features
+  allowRegistration Boolean @default(true)
+  maintenanceMode   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("site_config")
 }

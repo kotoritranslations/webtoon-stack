@@ -1,11 +1,11 @@
 // src/app/layout.tsx
 
 import { AuthProvider } from "@/components/providers/session-provider";
-import { Navbar } from "@/components/navbar";
+import { NavbarWrapper } from "@/components/NavbarWrapper";
 import { Sidebar } from "@/components/sidebar";
 import { SidebarProvider } from "@/context/sidebar-context";
 import { Footer } from "@/components/Footer";
-import { siteConfig } from "@/config/site";
+import { getSiteSettings } from "@/config/site";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -20,10 +20,17 @@ const geistMono = Geist_Mono({
   variable: "--font-mono",
 });
 
-export const metadata: Metadata = {
-  title: `${siteConfig.name} — ${siteConfig.description}`,
-  description: siteConfig.tagline,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const site = await getSiteSettings();
+  return {
+    title: `${site.name} — ${site.description}`,
+    description: site.tagline,
+    icons: {
+      icon: site.faviconUrl ?? site.logoUrl ?? "/favicon.ico",
+      apple: site.faviconUrl ?? site.logoUrl ?? "/apple-touch-icon.png",
+    },
+  };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -58,7 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="flex min-h-screen">
               <Sidebar />
               <div className="flex min-w-0 flex-1 flex-col lg:pl-14">
-                <Navbar />
+                <NavbarWrapper />
                 <main className="flex-1">
                   {children}
                 </main>

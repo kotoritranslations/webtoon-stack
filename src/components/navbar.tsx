@@ -8,16 +8,24 @@ import Image from "next/image";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useEffect } from "react";
-import { User, SignOut, Gear, BookOpen, SquaresFour } from "@phosphor-icons/react";
+import { User, SignOut, Gear, BookOpen, SquaresFour, List } from "@phosphor-icons/react";
 import { NotificationsDropdown } from "@/components/notifications/NotificationsDropdown";
-import { siteConfig } from "@/config/site";
+import { useSidebar } from "@/context/sidebar-context";
 
-export function Navbar() {
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+interface NavbarProps {
+  siteName: string;
+  logoUrl: string | null;
+}
+
+export function Navbar({ siteName, logoUrl }: NavbarProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
   const isLoading = status === "loading";
   const username = session?.user?.username;
   const avatar = session?.user?.avatar ?? session?.user?.image;
+  const { setMobileOpen } = useSidebar();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -52,15 +60,35 @@ export function Navbar() {
       }}
     >
       {/* Logo */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-1">
+
+        {/* Hamburguesa — solo móvil */}
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          className="flex h-7 w-7 items-center justify-center rounded-[4px] lg:hidden"
+          style={{ color: "var(--color-text-3)" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.backgroundColor = "var(--color-layer-3)";
+            (e.currentTarget as HTMLElement).style.color = "var(--color-text-1)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+            (e.currentTarget as HTMLElement).style.color = "var(--color-text-3)";
+          }}
+          aria-label="Abrir menú"
+        >
+          <List size={18} weight="bold" />
+        </button>
+
         <Link
           href="/"
           className="flex items-center transition-opacity hover:opacity-70"
         >
-          {siteConfig.logoUrl ? (
+          {logoUrl ? (
             <Image
-              src={siteConfig.logoUrl}
-              alt={siteConfig.name}
+              src={logoUrl}
+              alt={siteName}
               width={80}
               height={28}
               className="object-contain"
@@ -72,13 +100,13 @@ export function Navbar() {
               className="text-sm font-bold tracking-[-0.05em]"
               style={{ color: "var(--color-text-1)" }}
             >
-              {siteConfig.name}
+              {siteName}
             </span>
           )}
         </Link>
 
         {/* Nav links */}
-        <div className="hidden items-center gap-1 sm:flex">
+        <div className="hidden items-center gap-1 lg:flex">
           <NavLink href="/library">Biblioteca</NavLink>
           <NavLink href="/chapters">Capítulos</NavLink>
         </div>
