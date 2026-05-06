@@ -3,7 +3,7 @@ import { getSiteConfig } from "@/lib/actions/site-config";
 
 // ─── Estático (fallback y compatibilidad con imports existentes) ──────────────
 export const siteConfig = {
-    name: process.env.NEXT_PUBLIC_SITE_NAME ?? "Mi Sitio",
+    name: process.env.NEXT_PUBLIC_SITE_NAME ?? "Kotori Translations",
     description: "Lee series gratis",
     tagline: "Descubre miles de series de webtoon, manga y cómics.",
     url: process.env.NEXTAUTH_URL ?? "https://tusitio.com",
